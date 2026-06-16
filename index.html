@@ -823,8 +823,9 @@
           return;
         }
 
-        if (form.action.includes('https://formspree.io/f/mkoaeyqy')) {
-          showMessage('error', 'The sign-up form has not been connected yet. The page owner needs to add the Formspree form ID before publishing.');
+        const endpoint = form.getAttribute('action') || '';
+        if (!/^https:\/\/formspree\.io\/f\/[A-Za-z0-9]+$/.test(endpoint)) {
+          showMessage('error', 'The Formspree endpoint is missing or invalid.');
           return;
         }
 
@@ -840,7 +841,18 @@
           });
 
           if (!response.ok) {
-            throw new Error('Submission failed');
+            let message = 'Submission failed';
+            try {
+              const data = await response.json();
+              if (Array.isArray(data.errors) && data.errors.length) {
+                message = data.errors.map((item) => item.message).filter(Boolean).join(' ');
+              } else if (data.error) {
+                message = data.error;
+              }
+            } catch (_) {
+              // Keep the generic message when Formspree does not return JSON.
+            }
+            throw new Error(message);
           }
 
           form.reset();
@@ -848,7 +860,10 @@
           showMessage('success', 'You are on the tester list. Watch your inbox for a future TimeTrack testing invitation.');
           submitButton.textContent = 'Joined successfully';
         } catch (error) {
-          showMessage('error', 'Your sign-up could not be sent. Please check your connection and try again.');
+          const detail = error && error.message && error.message !== 'Submission failed'
+            ? ` ${error.message}`
+            : '';
+          showMessage('error', `Your sign-up could not be sent.${detail} Please check your connection and try again.`);
           submitButton.disabled = false;
           submitButton.textContent = originalText;
         }
